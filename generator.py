@@ -446,18 +446,31 @@ def generate_series(config: SeriesConfig) -> list[pathlib.Path]:
         # Inject img2img parameters for all frames after the first
         if prev_image_path is not None:
             img2img_key = model_info.get("img2img_input_key", "image")
+            # strength_key may be None for models without a strength parameter
+            # (e.g. flux-2-flex uses reference images with no strength control)
             strength_key = model_info.get("strength_key", "prompt_strength")
+            # img2img_list_input=True means the input key expects a list of images
+            # rather than a single image (e.g. flux-2-flex's "input_images" field)
+            img2img_list_input = model_info.get("img2img_list_input", False)
 
             if config.verbose:
+                strength_info = (
+                    f", strength={config.img2img_strength}" if strength_key else ""
+                )
                 print(
                     f"  img2img base : {prev_image_path.name}"
-                    f"  (strength={config.img2img_strength})"
+                    f"  ({strength_info.lstrip(', ')})"
                 )
 
             # Open the previous frame and submit while the file handle is live.
             with open(prev_image_path, "rb") as img_file:
-                model_input[img2img_key] = img_file
-                model_input[strength_key] = config.img2img_strength
+                if img2img_list_input:
+                    model_input[img2img_key] = [img_file]
+                else:
+                    model_input[img2img_key] = img_file
+                # Only inject strength if the model exposes a strength parameter
+                if strength_key:
+                    model_input[strength_key] = config.img2img_strength
                 image_url, prediction_url = _run_prediction(
                     replicate, config.model, model_input, config.verbose
                 )

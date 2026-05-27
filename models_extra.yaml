@@ -1,0 +1,20 @@
+# models_extra.yaml — custom model definitions loaded at runtime by models.py
+#
+# Each key is a Replicate model identifier (owner/model).
+# Use the same capability keys as KNOWN_MODELS in models.py.
+
+black-forest-labs/flux-2-flex:
+  # FLUX.2 [flex] — multi-reference image editing model
+  # https://replicate.com/black-forest-labs/flux-2-flex
+  supports_img2img: true
+  img2img_input_key: input_images   # takes a *list* of image URIs / file objects
+  img2img_list_input: true          # tell generator.py to wrap the image in a list
+  strength_key: null                # no prompt_strength / image_strength parameter
+  native_resolution: 1024
+  supports_negative_prompt: false
+  width_key: null                   # dimensions controlled via aspect_ratio + resolution
+  height_key: null
+  aspect_ratio_key: aspect_ratio    # "1:1", "16:9", etc.
+  steps_key: steps                  # range 1-50, default 30
+  guidance_key: guidance            # range 1.5-10, default 4.5
+  seed_key: seed

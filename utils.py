@@ -58,7 +58,7 @@ def resolve_aspect_ratio(aspect_ratio: str) -> Tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# Output path helpers
+# Output path helpers — single image
 # ---------------------------------------------------------------------------
 
 def build_output_path(output_dir: str, name: str, fmt: str) -> pathlib.Path:
@@ -71,6 +71,62 @@ def build_output_path(output_dir: str, name: str, fmt: str) -> pathlib.Path:
     """
     return pathlib.Path(output_dir) / f"{name}.{fmt}"
 
+
+# ---------------------------------------------------------------------------
+# Output path helpers — series
+# ---------------------------------------------------------------------------
+
+def build_series_output_path(
+    output_dir: str,
+    name_prefix: str,
+    index: int,
+    padding: int,
+    fmt: str,
+) -> pathlib.Path:
+    """Return the output :class:`~pathlib.Path` for one frame in a series.
+
+    The filename follows the spec pattern ``{prefix}-{index:0{padding}d}.{fmt}``.
+
+    Example::
+
+        build_series_output_path("assets/ants", "ant-stage", 3, 2, "png")
+        # → PosixPath('assets/ants/ant-stage-03.png')
+
+        build_series_output_path("output", "farm-level", 1, 1, "png")
+        # → PosixPath('output/farm-level-1.png')
+    """
+    filename = f"{name_prefix}-{index:0{padding}d}.{fmt}"
+    return pathlib.Path(output_dir) / filename
+
+
+def format_prompt_template(
+    template: str,
+    n: int,
+    total: int,
+    name: str,
+) -> str:
+    """Substitute known tokens in a series prompt template.
+
+    Supported tokens:
+
+    - ``{n}``     — 1-based frame index
+    - ``{n0}``    — 0-based frame index
+    - ``{total}`` — total number of frames in the series (``count``)
+    - ``{name}``  — the ``name_prefix``
+
+    Raises ``KeyError`` for unknown ``{token}`` placeholders.
+
+    Example::
+
+        format_prompt_template("ant stage {n} of {total}", n=3, total=10, name="ant")
+        # → 'ant stage 3 of 10'
+    """
+    return template.format(n=n, n0=n - 1, total=total, name=name)
+
+
+# ---------------------------------------------------------------------------
+# Directory / path guards
+# ---------------------------------------------------------------------------
 
 def ensure_output_dir(output_dir: str) -> pathlib.Path:
     """Create *output_dir* (and all parents) if it does not exist.

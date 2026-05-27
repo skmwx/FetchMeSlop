@@ -5,12 +5,28 @@ Each entry in KNOWN_MODELS describes how to talk to a specific Replicate
 model: which input keys it expects, what it supports, and its native
 resolution (used to scale aspect-ratio presets).
 
-To add a new model without editing this file, drop a models_extra.yaml
-next to this module (MVP-03+).
+To add a new model without editing this file, drop a ``models_extra.yaml``
+next to this module.  It must be a YAML mapping of model identifiers to
+capability dicts using the same keys as KNOWN_MODELS.
+
+Example ``models_extra.yaml``::
+
+    my-org/my-sdxl-finetune:
+      supports_img2img: true
+      img2img_input_key: image
+      strength_key: prompt_strength
+      native_resolution: 1024
+      supports_negative_prompt: true
+      width_key: width
+      height_key: height
+      steps_key: num_inference_steps
+      guidance_key: guidance_scale
+      seed_key: seed
 """
 
 from __future__ import annotations
 
+import pathlib
 import sys
 from typing import Any, Optional
 
@@ -22,7 +38,8 @@ from typing import Any, Optional
 KNOWN_MODELS: dict[str, dict[str, Any]] = {
     # ------------------------------------------------------------------
     # Stability AI — SDXL
-    # NOTE: deprecated on Replicate as of 2025; kept for reference.
+    # Supports img2img; marked deprecated on Replicate as of 2025 but
+    # still the most widely-documented img2img reference model.
     # ------------------------------------------------------------------
     "stability-ai/sdxl": {
         "supports_img2img": True,
@@ -36,6 +53,23 @@ KNOWN_MODELS: dict[str, dict[str, Any]] = {
         "guidance_key": "guidance_scale",
         "seed_key": "seed",
         "deprecated": True,
+    },
+    # ------------------------------------------------------------------
+    # Stability AI -- Stable Diffusion 3.5 Large (img2img capable)
+    # Uses aspect_ratio string ("1:1", "16:9" ...) instead of w/h pixels.
+    # ------------------------------------------------------------------
+    "stability-ai/stable-diffusion-3.5-large": {
+        "supports_img2img": True,
+        "img2img_input_key": "image",
+        "strength_key": "prompt_strength",
+        "native_resolution": 1024,
+        "supports_negative_prompt": True,
+        "width_key": None,           # model uses aspect_ratio_key instead
+        "height_key": None,
+        "aspect_ratio_key": "aspect_ratio",   # e.g. "1:1", "16:9"
+        "steps_key": "num_inference_steps",
+        "guidance_key": "guidance_scale",
+        "seed_key": "seed",
     },
     # ------------------------------------------------------------------
     # Black Forest Labs — Flux Schnell  (fast, text2img only)
@@ -89,6 +123,70 @@ GENERIC_MODEL: dict[str, Any] = {
     "guidance_key": "guidance_scale",
     "seed_key": "seed",
 }
+
+
+# ---------------------------------------------------------------------------
+# models_extra.yaml support
+# ---------------------------------------------------------------------------
+
+def _load_extra_models() -> None:
+    """Merge ``models_extra.yaml`` (if present) into :data:`KNOWN_MODELS`.
+
+    Called once at module import time.  Silently skips if the file does not
+    exist.  Emits a warning (to stderr) if pyyaml is missing or the file is
+    malformed, but does not abort.
+    """
+    extra_path = pathlib.Path(__file__).parent / "models_extra.yaml"
+    if not extra_path.exists():
+        return
+
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError:
+        print(
+            "Warning: models_extra.yaml found but pyyaml is not installed — "
+            "extra models will be ignored.\n"
+            "  Run: pip install pyyaml",
+            file=sys.stderr,
+        )
+        return
+
+    try:
+        with open(extra_path, encoding="utf-8") as fh:
+            extra = yaml.safe_load(fh)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"Warning: Could not load models_extra.yaml: {exc}",
+            file=sys.stderr,
+        )
+        return
+
+    if not isinstance(extra, dict):
+        print(
+            "Warning: models_extra.yaml must be a YAML mapping of model-id → capabilities. "
+            "Ignoring.",
+            file=sys.stderr,
+        )
+        return
+
+    count = 0
+    for model_id, caps in extra.items():
+        if not isinstance(caps, dict):
+            print(
+                f"Warning: Skipping malformed entry '{model_id}' in models_extra.yaml "
+                f"(expected a mapping).",
+                file=sys.stderr,
+            )
+            continue
+        KNOWN_MODELS[model_id] = caps
+        count += 1
+
+    if count:
+        print(f"Loaded {count} extra model(s) from models_extra.yaml.", file=sys.stderr)
+
+
+# Load extra models at import time (silent if file absent)
+_load_extra_models()
 
 
 # ---------------------------------------------------------------------------
